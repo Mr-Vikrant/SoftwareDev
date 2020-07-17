@@ -1,0 +1,126 @@
+---
+title: "Student_scores"
+author: "Vikrant"
+date: "7/16/2020"
+output: html_document
+---
+
+
+
+
+```{r}
+library(xgboost)
+```
+
+
+```{r}
+
+df = read.csv("C:\\Users\\Kanchan\\Downloads\\student_scores.txt")
+
+```
+
+```{r}
+df2 = df[order(df$Scores, decreasing = FALSE),]
+df2$Scores = as.numeric(df2$Scores)
+
+class(df2$Scores)
+str(df2)
+
+boxplot(df)
+
+plot(df)
+
+hist(df$Scores)
+
+ggplot(data = df2, aes(x= df2$Scores, y= df2$Hours)) + geom_point() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) + scale_x_continuous("df2$Scores", labels = as.character(df2$Scores), breaks = df2$Scores)
+
+?barplot
+?geom_bar
+```
+
+
+```{r}
+set.seed(248) #this is for consistency in testing
+
+split <- sample.split(df, SplitRatio = 0.75)
+#we are splitting the data such that we have 75% of the data is Train Data and 25% of the data is my Test Data
+
+df_train <- subset(df, split == TRUE)
+df_test <- subset(df, split == FALSE)
+
+```
+
+
+
+```{r}
+lrmodel = lm(Scores~Hours, data = df_train)
+summary(lrmodel)
+
+#predicted_val = predict(lrmodel, data.frame(Hours = c(9.25)))
+predicted_val = predict(lrmodel, df_test)
+
+head(predicted_val)
+
+accuracy(lrmodel)
+
+rmse(df_test$Scores,predicted_val)
+mse(df_test$Scores,predicted_val)
+
+```
+
+```{r}
+dtrain <- xgb.DMatrix(data=as.matrix(df_train), missing=NA)
+dtest <- xgb.DMatrix(data=as.matrix(df_test), missing=NA)
+
+features_test<-as.matrix(df_test[,1])
+
+features_train<-as.matrix(df_train[,1])
+label_train<-as.matrix(df_train[,2])
+
+set.seed(300)
+
+param <- list(booster = "gblinear"
+              , objective = "reg:linear"
+              , subsample = 0.7
+              , max_depth = 5
+              , colsample_bytree = 0.7
+              , eta = 0.037
+              , eval_metric = 'mae'
+              , base_score = 0.012 #average
+              , min_child_weight = 100)
+
+foldsCV <- createFolds(label_train, k=7, list=TRUE, returnTrain=FALSE)
+
+xgb_cv <- xgb.cv(data=features_train,
+                 label = label_train,
+                 params=param,
+                nrounds=100,
+                prediction=TRUE,
+                maximize=FALSE,
+                folds=foldsCV,
+                early_stopping_rounds = 30,
+                print_every_n = 5
+)
+
+nrounds <- xgb_cv$best_iteration
+
+xgb <- xgboost(  params = param
+                 , data = features_train 
+                 , label = label_train
+                # , watchlist = list(train = dtrain)
+                 , nrounds = nrounds
+                 , verbose = 1
+                 , print_every_n = 5
+)
+
+importance_matrix <- xgb.importance(names(features_train),model=xgb)
+importance_matrix
+
+preds <- predict(xgb,features_test)
+
+rmse(df_test$Scores,preds)
+mse(df_test$Scores,preds)
+
+
+```
+
