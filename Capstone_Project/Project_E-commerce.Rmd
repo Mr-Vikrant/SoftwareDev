@@ -1,0 +1,798 @@
+---
+title: "E commerce"
+author: "Vikrant"
+date: "4/18/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+###########################################################################################################################
+
+#PROJECT NOTES 1
+
+###########################################################################################################################
+
+```{r}
+
+library(wordcloud)
+library(devtools)
+library(tidyverse)      
+library(stringr)     
+library(tidytext)
+library(dplyr)
+library(reshape2)
+library(igraph)
+library(ggraph)
+library(tm)
+library(syuzhet)
+library(stopwords)
+library(caret)
+library(corrplot)
+library(factoextra)
+library(psych)
+#Likelihood test
+library(lmtest)
+#McFaden R square computation
+library(pscl)
+#ROC plot
+library(ROCR)
+#DataPartition
+library(caTools)
+#KNN
+library(class)
+#NB
+library(e1071)
+### Load the library for model performance
+library(caret)
+library(klaR)
+#randomForest
+library(randomForest)
+library(ineq)
+library(InformationValue)
+library(data.table)
+library(scales)
+#SMOTE
+library(DMwR)
+library(Metrics)
+```
+
+
+```{r}
+getwd()
+setwd("C://Users//vermav3//Downloads//R_material//Capstone Project//E-commerce")
+eCommData <- read.csv("Womens Clothing E-Commerce Reviews.csv")
+```
+
+```{r}
+eCommData <- eCommData[,-c(1,2)]
+summary(eCommData)
+str(eCommData)
+sum(is.na(eCommData))
+table(eCommData$Recommended.IND)
+```
+
+```{r}
+attach(eCommData)
+eCommData$Division.Name.numeric <- ifelse(Division.Name == "General" , 1,
+                                          ifelse(Division.Name == "General Petite", 2,
+                                                 ifelse(Division.Name == "Initmates", 3, 4)))
+
+cordata = cor(eCommData)
+length(which(eCommData$Division.Name.numeric == 4))
+
+```
+
+#TEXT MINING
+```{r}
+e_commData <- eCommData[!eCommData$Division.Name.numeric == 4,]
+e_commData <- e_commData[,-c(11)]
+attach(e_commData)
+summary(e_commData)
+str(e_commData)
+
+#REVIEW TEXT
+
+txt_corpus <- iconv(e_commData$Review.Text, to = "UTF-8")
+corpus <- Corpus(VectorSource(txt_corpus))
+inspect(corpus[1:5])
+
+#text cleaning
+corpus <- tm_map(corpus, tolower)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus, removePunctuation)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus, removeNumbers)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus, removeWords, stopwords("en"))
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus, stripWhitespace)
+inspect(corpus[1:5])
+
+#Term Document Matrix
+tdm <- TermDocumentMatrix(corpus)
+tdm
+
+tdms <- removeSparseTerms(tdm, 0.99)
+tdms
+
+tdms <- as.matrix(tdms)
+tdms[1:10, 1:20]
+nrow(tdms)
+
+#Bar plot
+tdm_bar <- rowSums(tdms)
+tdm_bar <- subset(tdm_bar, tdm_bar>=700)
+barplot(tdm_bar,
+        las = 3,
+        col = rainbow(25))
+
+
+tdm_bar <- sort(rowSums(tdms), decreasing = TRUE)
+set.seed(222)
+wordcloud(words = names(tdm_bar),
+          freq = tdm_bar,
+          max.words = 300,
+          colors = brewer.pal(8, "Dark2"))
+
+
+
+
+
+#TITLE TEXT
+
+title_corpus <- iconv(e_commData$Title, to = "UTF-8")
+corpus_titletext <- Corpus(VectorSource(title_corpus))
+inspect(corpus_titletext[1:5])
+
+#text cleaning
+corpus_titletext <- tm_map(corpus_titletext, tolower)
+inspect(corpus_titletext[1:5])
+
+corpus_titletext <- tm_map(corpus_titletext, removePunctuation)
+inspect(corpus_titletext[1:5])
+
+corpus_titletext <- tm_map(corpus_titletext, removeNumbers)
+inspect(corpus_titletext[1:5])
+
+corpus_titletext <- tm_map(corpus_titletext, removeWords, stopwords("en"))
+inspect(corpus_titletext[1:5])
+
+corpus_titletext <- tm_map(corpus_titletext, stripWhitespace)
+inspect(corpus_titletext[1:5])
+
+#Term Document Matrix
+tdm_title <- TermDocumentMatrix(corpus_titletext)
+tdm_title[1,1]
+
+tdms_title <- removeSparseTerms(tdm_title, 0.99)
+tdms_title
+
+tdms_title <- as.matrix(tdms_title)
+tdms_title[1:10, 1:20]
+nrow(tdms_title)
+summary(tdms_title)
+
+#Document Term Matrix
+dtm_title <- DocumentTermMatrix(corpus_titletext)
+dtm_title[1,1]
+
+dtms_title <- removeSparseTerms(dtm_title, 0.99)
+dtms_title
+
+dtms_title <- as.matrix(dtms_title)
+dtms_title[1:10, 1:20]
+
+#Bar plot
+tdm_title_bar <- rowSums(dtms_title)
+tdm_title_bar <- subset(tdm_title_bar, tdm_title_bar>=700)
+barplot(tdm_title_bar,
+        las = 3,
+        col = rainbow(25))
+
+
+tdm_title_bar <- sort(rowSums(tdms_title), decreasing = TRUE)
+set.seed(222)
+wordcloud(words = names(tdm_title_bar),
+          freq = tdm_title_bar,
+          max.words = 200,
+          colors = brewer.pal(8, "Dark2"))
+
+
+```
+
+
+#Sentiment analysis
+```{r}
+sentiment_analysis <- iconv(e_commData$Review.Text, to = "UTF-8")
+sentiment <- get_nrc_sentiment(sentiment_analysis)
+head(sentiment)
+sentiment_analysis[1]
+get_nrc_sentiment('wonderful')
+
+#Bar plot
+barplot(colSums(sentiment),
+        las = 3,
+        col = rainbow(10),
+        ylab = 'Count',
+        main = 'Sentiment scores for product review')
+```
+
+
+#New variables creation
+```{r}
+dmy <- dummyVars(" ~ Division.Name + Department.Name + Class.Name", data = e_commData)
+
+trsf <- data.frame(predict(dmy, newdata = e_commData))
+
+trsf <- trsf[,-c(1,5,12)]
+
+e_commData_numeric = cbind(e_commData,trsf)
+
+e_commData_final = e_commData_numeric[,-c(2,3,5,7,8,9,10,11)]
+
+str(e_commData_final)
+
+data_cor = cor(e_commData_final)
+data_corplot = corrplot(data_cor, type = "lower")
+
+KMO(r=e_commData_final)
+
+A<-eigen(data_cor) 
+eigenvalues<-A$values 
+eigenvectors<-A$vectors 
+#eigenvalues
+
+#Plotting SCREE Graphs 
+plot(eigenvalues,type="lines", xlab="Pincipal Components",ylab="Eigen Values")
+
+
+
+solution <- fa(r=e_commData_final, nfactors=20, rotate="none", fm="minres") 
+solution
+
+solution1 <- fa(r=e_commData_final, nfactors=22, rotate="varimax", fm="minres") 
+
+
+fa.diagram(solution1, simple = FALSE)
+
+#write.csv(e_commData,file = "E-commerce-modified-2.csv", append = "false", col.names = TRUE)
+
+```
+
+##########################################################################################################################
+
+#PROJECT NOTES 2
+
+##########################################################################################################################
+
+```{r}
+view(e_commData)
+
+#Age bracketization
+?findInterval
+e_commData$AgeGrp <- findInterval(e_commData$Age, c(18,23,28,33,38,43,48,53,60,70,80,90,99))
+e_commData$AgeGrp <- as.character(e_commData$AgeGrp)
+dmyAge <- dummyVars(" ~ AgeGrp", data = e_commData)
+dmyAgeGrp <- data.frame(predict(dmyAge, newdata = e_commData))
+str(dmyAgeGrp)
+e_commdata1 <- e_commData[,-c(1,2,3,7,8,9,10,11)]
+e_commdata1 <- cbind(e_commdata1, dtms_title)
+#Adding age bracketing and DTM of title
+e_commdata1 <- cbind(e_commdata1, dmyAgeGrp)
+str(e_commdata1)
+
+
+```
+
+
+#Splitting data
+```{r}
+set.seed(100)
+indices = sample(1:nrow(e_commdata1), 0.70*nrow(e_commdata1))
+train = e_commdata1[indices,]
+test = e_commdata1[-indices,]
+str(train)
+dim(e_commdata1)
+dim(train)
+dim(test)
+```
+
+
+#Logistic regression
+```{r}
+
+########################################################################################################################
+smoteDataOp <- train
+prop.table(table(smoteDataOp$Recommended.IND))
+smoteDataOp$Recommended.IND <- as.factor(smoteDataOp$Recommended.IND)
+smoteData <- SMOTE(Recommended.IND ~ ., data = smoteDataOp, perc.over = 200)
+prop.table(table(smoteData$Recommended.IND))
+logit1 <- glm(Recommended.IND ~ . , data = smoteData, family = binomial(link = "logit"))
+dimnames(train)
+lrtest(logit1)
+summary(logit1)
+#Mcfaden (Pseudo) R Square Computation and Interpretation
+pR2(logit1)
+
+
+#Confusion matrix for measuring predictive accuracy
+predicted1 = predict(logit1, type = "response")
+pred.term1 <- ifelse(predicted1 > 0.5,1,0)
+pred.term1
+tab.logit = table(Actual=smoteData$Recommended.IND, Prediction=pred.term1)
+
+#Prediction with test data
+predicted <- predict(logit1, type = "response", newdata = test)
+predicted
+pred.term <- ifelse(predicted > 0.5, 1, 0)
+tab.logit = table(actual = test$Recommended.IND, prediction = pred.term)
+tab.logit
+
+#Accuracy
+sum(diag(tab.logit)/sum(tab.logit))
+
+optimalCutOff <- optimalCutoff(test$Recommended.IND, predicted)
+optimalCutOff
+
+misClassError(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+plotROC(test$Recommended.IND, predicted)
+
+Concordance(test$Recommended.IND, predicted)
+
+sensitivity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+specificity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+confusionMatrix(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+
+######################################################################################################################
+
+logit2 <- glm(Recommended.IND ~ Rating + Positive.Feedback.Count + nice + cute + AgeGrp2, data = smoteData, family = binomial(link = "logit"))
+lrtest(logit2)
+summary(logit2)
+
+#Mcfaden (Pseudo) R Square Computation and Interpretation
+pR2(logit2)
+
+
+#Confusion matrix for measuring predictive accuracy
+predicted1 = predict(logit2, type = "response")
+pred.term1 <- ifelse(predicted1 > 0.5,1,0)
+table(Actual=smoteData$Recommended.IND, Prediction=pred.term1)
+
+#Prediction with test data
+predicted <- predict(logit2, type = "response", newdata = test)
+predicted
+pred.term <- ifelse(predicted > 0.5, 1, 0)
+tab.logit = table(actual = test$Recommended.IND, prediction = pred.term)
+tab.logit
+
+#Accuracy
+sum(diag(tab.logit)/sum(tab.logit))
+
+optimalCutOff <- optimalCutoff(test$Recommended.IND, predicted)[1]
+optimalCutOff
+
+misClassError(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+plotROC(test$Recommended.IND, predicted)
+
+Concordance(test$Recommended.IND, predicted)
+
+sensitivity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+specificity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+confusionMatrix(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+
+######################################################################################################################
+
+logit3 <- glm(Recommended.IND ~ Rating + nice + cute, data = smoteData, family = binomial(link = "logit"))
+lrtest(logit3)
+summary(logit3)
+
+#Mcfaden (Pseudo) R Square Computation and Interpretation
+pR2(logit3)
+
+
+#Confusion matrix for measuring predictive accuracy
+predicted1 = predict(logit3, type = "response")
+pred.term1 <- ifelse(predicted1 > 0.5,1,0)
+table(Actual=smoteData$Recommended.IND, Prediction=pred.term1)
+
+#Prediction with test data
+predicted <- predict(logit3, type = "response", newdata = test)
+predicted
+pred.term <- ifelse(predicted > 0.5, 1, 0)
+tab.logit = table(actual = test$Recommended.IND, prediction = pred.term)
+tab.logit
+
+#Accuracy
+sum(diag(tab.logit)/sum(tab.logit))
+
+optimalCutOff <- optimalCutoff(test$Recommended.IND, predicted)[1]
+optimalCutOff
+
+misClassError(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+plotROC(test$Recommended.IND, predicted)
+
+Concordance(test$Recommended.IND, predicted)
+
+sensitivity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+specificity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+confusionMatrix(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+
+######################################################################################################################
+
+logit4 <- glm(Recommended.IND ~ Rating, data = smoteData, family = binomial(link = "logit"))
+lrtest(logit4)
+summary(logit4)
+
+#Mcfaden (Pseudo) R Square Computation and Interpretation
+pR2(logit4)
+
+
+#Confusion matrix for measuring predictive accuracy
+predicted1 = predict(logit4, type = "response")
+pred.term1 <- ifelse(predicted1 > 0.5,1,0)
+table(Actual=smoteData$Recommended.IND, Prediction=pred.term1)
+
+#Prediction with test data
+predicted <- predict(logit4, type = "response", newdata = test)
+predicted
+pred.term <- ifelse(predicted > 0.5, 1, 0)
+tab.logit = table(actual = test$Recommended.IND, prediction = pred.term)
+tab.logit
+
+#Accuracy
+sum(diag(tab.logit)/sum(tab.logit))
+
+optimalCutOff <- optimalCutoff(test$Recommended.IND, predicted)[1]
+optimalCutOff
+
+misClassError(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+plotROC(test$Recommended.IND, predicted)
+
+Concordance(test$Recommended.IND, predicted)
+
+sensitivity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+specificity(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+confusionMatrix(test$Recommended.IND, predicted, threshold = optimalCutOff)
+
+
+```
+
+#Naive Bayes
+```{r}
+
+#Use NB Classifier 
+?naiveBayes
+train$Recommended.IND <- as.factor(train$Recommended.IND)
+test$Recommended.IND <- as.numeric(test$Recommended.IND)
+
+smoteDataOp <- train
+prop.table(table(smoteDataOp$Recommended.IND))
+smoteData <- SMOTE(Recommended.IND ~ ., data = smoteDataOp, perc.over = 200)
+prop.table(table(smoteData$Recommended.IND))
+######################################################################################################
+NB1 = naiveBayes(Recommended.IND ~ ., data=smoteData)
+summary(NB1)
+
+predNB1 = predict(NB1, test, type = "class")
+predNB1
+
+tab.NB1 = table(Actual = test$Recommended.IND , Predicted =  predNB1)
+tab.NB1
+sum(diag(tab.NB1)/sum(tab.NB1))
+
+sensitivity <- tab.NB1[4]/sum(tab.NB1[2,])
+sensitivity
+
+specificity <- tab.NB1[1]/sum(tab.NB1[1,])
+specificity
+
+
+######################################################################################################
+
+NB2 = naiveBayes(Recommended.IND ~ Rating + Positive.Feedback.Count + nice + cute + AgeGrp2, data=smoteData)
+
+predNB2 = predict(NB2, test, type = "class")
+predNB2
+
+tab.NB2 = table(Actual = test$Recommended.IND , Predicted =  predNB2)
+tab.NB2
+sum(diag(tab.NB2)/sum(tab.NB2))
+
+sensitivity <- tab.NB2[4]/sum(tab.NB2[2,])
+sensitivity
+
+specificity <- tab.NB2[1]/sum(tab.NB2[1,])
+specificity
+
+
+######################################################################################################
+
+NB3 = naiveBayes(Recommended.IND ~ Rating + nice + cute, data=smoteData)
+
+predNB3 = predict(NB3, test, type = "class")
+#predNB3
+
+tab.NB3 = table(Actual = test$Recommended.IND ,Predicted = predNB3)
+tab.NB3
+sum(diag(tab.NB3)/sum(tab.NB3))
+
+sensitivity <- tab.NB3[4]/sum(tab.NB3[2,])
+sensitivity
+
+specificity <- tab.NB3[1]/sum(tab.NB3[1,])
+specificity
+
+
+######################################################################################################
+NB4 = naiveBayes(Recommended.IND ~ Rating, data=smoteData)
+summary(NB4)
+
+predNB4 = predict(NB4, test, type = "class")
+predNB4
+
+tab.NB4 = table(Actual = test$Recommended.IND ,Predicted = predNB4)
+tab.NB4
+sum(diag(tab.NB4)/sum(tab.NB4))
+
+sensitivity <- tab.NB4[4]/sum(tab.NB4[2,])
+sensitivity
+
+specificity <- tab.NB4[1]/sum(tab.NB4[1,])
+specificity
+
+
+```
+
+#KNN
+```{r}
+
+#normalizing the data
+data = e_commdata1
+str(data)
+norm = function(x) { (x-min(x))/(max(x)-min(x))}
+
+#########################################################################################################################################
+
+norm.data = as.data.frame(lapply(data[,-c(2,3,4,5,6,7,8,9,10,11,13,14)], norm))
+#?lapply
+View(data)
+View(norm.data)
+
+usable.data = cbind(data[,2], norm.data)
+str(usable.data)
+View(usable.data)
+
+# Data partitioning
+spl = sample.split(usable.data$'data[, 2]', SplitRatio = 0.7)
+train = subset(usable.data, spl == T)
+test = subset(usable.data, spl == F)
+dim(train)
+dim(test)
+
+smoteDataOp <- train
+colnames(smoteDataOp)[1] <- "Recommended.IND"
+prop.table(table(smoteDataOp$Recommended.IND))
+smoteDataOp$Recommended.IND <- as.factor(smoteDataOp$Recommended.IND)
+smoteData <- SMOTE(Recommended.IND ~ ., data = smoteDataOp, perc.over = 200)
+prop.table(table(smoteData$Recommended.IND))
+
+#Use KNN Classifier 
+
+pred = knn(smoteData[-1], test[-1], smoteData[,1], k=1)
+table.knn = table(Actual = test[,1],Prediction = pred)
+table.knn
+sum(diag(table.knn))/sum(table.knn)
+
+sensitivity <- table.knn[4]/sum(table.knn[2,])
+sensitivity
+
+specificity <- table.knn[1]/sum(table.knn[1,])
+specificity
+
+
+#########################################################################################################################################
+
+norm.data = as.data.frame(lapply(data[,-c(2)], norm))
+#?lapply
+View(data)
+View(norm.data)
+
+usable.data = cbind(data[,2], norm.data)
+str(usable.data)
+View(usable.data)
+
+# Data partitioning
+spl = sample.split(usable.data$'data[, 2]', SplitRatio = 0.7)
+train = subset(usable.data, spl == T)
+test = subset(usable.data, spl == F)
+dim(train)
+dim(test)
+
+smoteDataOp <- train
+colnames(smoteDataOp)[1] <- "Recommended.IND"
+prop.table(table(smoteDataOp$Recommended.IND))
+smoteDataOp$Recommended.IND <- as.factor(smoteDataOp$Recommended.IND)
+smoteData <- SMOTE(Recommended.IND ~ ., data = smoteDataOp, perc.over = 200)
+prop.table(table(smoteData$Recommended.IND))
+
+#Use KNN Classifier 
+
+pred = knn(smoteData[-1], test[-1], smoteData[,1], k=5)
+table.knn = table(Actual = test[,1],Prediction = pred)
+table.knn
+sum(diag(table.knn))/sum(table.knn)
+
+sensitivity <- table.knn[4]/sum(table.knn[2,])
+sensitivity
+
+specificity <- table.knn[1]/sum(table.knn[1,])
+specificity
+
+############################################################################
+#Use KNN Classifier 
+
+pred = knn(smoteData[-1], test[-1], smoteData[,1], k=7)
+table.knn = table(Actual = test[,1],Prediction = pred)
+table.knn
+sum(diag(table.knn))/sum(table.knn)
+
+sensitivity <- table.knn[4]/sum(table.knn[2,])
+sensitivity
+
+specificity <- table.knn[1]/sum(table.knn[1,])
+specificity
+
+
+```
+
+#RandomForest
+```{r}
+##Build the first RF model
+
+set.seed(100)
+RF_TRAIN_INDEX <- sample(1:nrow(e_commdata1),0.70*nrow(e_commdata1))
+RFtrain <- e_commdata1[RF_TRAIN_INDEX,]
+RFtest <- e_commdata1[-RF_TRAIN_INDEX,]
+RFtrain$Recommended.IND <- as.factor(RFtrain$Recommended.IND)
+RFtest$Recommended.IND <- as.factor(RFtest$Recommended.IND)
+str(RFtrain)
+
+smoteDataOp <- RFtrain
+prop.table(table(smoteDataOp$Recommended.IND))
+smoteDataTrain <- SMOTE(Recommended.IND ~ ., data = smoteDataOp, perc.over = 200)
+prop.table(table(smoteDataTrain$Recommended.IND))
+
+#mtry = tuneRF(RFtrain[,-c(2,3,5,7,8,9)], RFtrain[,5], stepFactor = 1.5, improve = 1e-5, ntree=500)
+#mtry
+?randomForest
+
+
+#########################################################################################################################################
+
+Rforest3 <- randomForest(formula = Recommended.IND ~ Rating + Positive.Feedback.Count + AgeGrp2, data = smoteDataTrain, ntree = 201, mtry = 3, nodesize = 10)
+
+##Print the model to see the OOB and error rate
+print(Rforest3)
+
+##Use this tree to do the prediction on train as well as test data set
+smoteDataTrain$RF.Pred = predict(Rforest3,data=smoteDataTrain,type="class")
+smoteDataTrain$RF.Score = predict(Rforest3,data=smoteDataTrain,type="prob")[,"1"]
+
+
+RFtest$RF.Pred = predict(Rforest3,RFtest,type="class")
+RFtest$RF.Score = predict(Rforest3,RFtest,type="prob")[,"1"]
+
+## RF Model Confusion Metrix
+RF_CM_train = table(smoteDataTrain$Recommended.IND ,smoteDataTrain$RF.Pred)
+RF_CM_train
+RF_CM_test = table(Actual = RFtest$Recommended.IND ,Prediction = RFtest$RF.Pred)
+RF_CM_test
+## Error Rate
+(RF_CM_train[1,2]+RF_CM_train[2,1])/nrow(smoteDataTrain)
+(RF_CM_test[1,2]+RF_CM_test[2,1])/nrow(RFtest)
+##Accuracy
+(RF_CM_train[1,1]+RF_CM_train[2,2])/nrow(smoteDataTrain)
+(RF_CM_test[1,1]+RF_CM_test[2,2])/nrow(RFtest)
+
+sensitivity <- RF_CM_test[4]/sum(RF_CM_test[2,])
+sensitivity
+
+specificity <- RF_CM_test[1]/sum(RF_CM_test[1,])
+specificity
+
+#########################################################################################################################################
+
+Rforest2 <- randomForest(formula = Recommended.IND ~ Rating + nice + cute , data = smoteDataTrain, ntree = 201, mtry = 2, nodesize = 10)
+
+##Print the model to see the OOB and error rate
+print(Rforest2)
+
+##Use this tree to do the prediction on train as well as test data set
+smoteDataTrain$RF.Pred = predict(Rforest2,data=smoteDataTrain,type="class")
+smoteDataTrain$RF.Score = predict(Rforest2,data=RFtrain,type="prob")[,"1"]
+
+
+RFtest$RF.Pred = predict(Rforest2,RFtest,type="class")
+RFtest$RF.Score = predict(Rforest2,RFtest,type="prob")[,"1"]
+
+## RF Model Confusion Metrix
+RF_CM_train = table(smoteDataTrain$Recommended.IND ,smoteDataTrain$RF.Pred)
+RF_CM_train
+RF_CM_test = table(Actual = RFtest$Recommended.IND ,Prediction = RFtest$RF.Pred)
+RF_CM_test
+## Error Rate
+(RF_CM_train[1,2]+RF_CM_train[2,1])/nrow(smoteDataTrain)
+(RF_CM_test[1,2]+RF_CM_test[2,1])/nrow(RFtest)
+##Accuracy
+(RF_CM_train[1,1]+RF_CM_train[2,2])/nrow(smoteDataTrain)
+(RF_CM_test[1,1]+RF_CM_test[2,2])/nrow(RFtest)
+
+sensitivity <- RF_CM_test[4]/sum(RF_CM_test[2,])
+sensitivity
+
+specificity <- RF_CM_test[1]/sum(RF_CM_test[1,])
+specificity
+
+#########################################################################################################################################
+
+Rforest1 <- randomForest(formula = Recommended.IND ~ Rating, data = smoteDataTrain, ntree = 201, mtry = 1, nodesize = 10)
+
+##Print the model to see the OOB and error rate
+print(Rforest1)
+
+##Use this tree to do the prediction on train as well as test data set
+smoteDataTrain$RF.Pred = predict(Rforest1,data=smoteDataTrain,type="class")
+smoteDataTrain$RF.Score = predict(Rforest1,data=smoteDataTrain,type="prob")[,"1"]
+
+
+RFtest$RF.Pred = predict(Rforest1,RFtest,type="class")
+RFtest$RF.Score = predict(Rforest1,RFtest,type="prob")[,"1"]
+
+## RF Model Confusion Metrix
+RF_CM_train = table(smoteDataTrain$Recommended.IND ,smoteDataTrain$RF.Pred)
+RF_CM_train
+RF_CM_test = table(Actual = RFtest$Recommended.IND ,Prediction = RFtest$RF.Pred)
+RF_CM_test
+## Error Rate
+(RF_CM_train[1,2]+RF_CM_train[2,1])/nrow(smoteDataTrain)
+(RF_CM_test[1,2]+RF_CM_test[2,1])/nrow(RFtest)
+##Accuracy
+(RF_CM_train[1,1]+RF_CM_train[2,2])/nrow(smoteDataTrain)
+(RF_CM_test[1,1]+RF_CM_test[2,2])/nrow(RFtest)
+
+sensitivity <- RF_CM_test[4]/sum(RF_CM_test[2,])
+sensitivity
+
+specificity <- RF_CM_test[1]/sum(RF_CM_test[1,])
+specificity
+
+```
+
